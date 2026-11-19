@@ -7,12 +7,12 @@ jobs:
     steps:
       - name: Build YummyNelOS ISO
         run: |
+          set -e
           sudo apt-get update
           sudo apt-get install -y debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin mtools
           mkdir -p work/chroot work/iso/live work/iso/boot/grub
-          sudo debootstrap --arch=amd64 --variant=minbase noble work/chroot http://ubuntu.com
-          echo "deb http://ubuntu.com noble main universe" | sudo tee work/chroot/etc/apt/sources.list
-          echo "deb http://ubuntu.com noble-updates main universe" | sudo tee -a work/chroot/etc/apt/sources.list
+          sudo debootstrap --arch=amd64 --variant=minbase bookworm work/chroot http://debian.org
+          echo "deb http://debian.org bookworm main contrib non-free-firmware" | sudo tee work/chroot/etc/apt/sources.list
           sudo mkdir -p work/chroot/opt/yummynelos
 
           cat << 'EOF' | sudo tee work/chroot/opt/yummynelos/index.html
@@ -133,3 +133,8 @@ jobs:
             ]
           };
 
+          let timerSec = 0, timerInt = null, jiggle = false, holdTimer = null;
+
+          function save() { localStorage.setItem('yummynelos_v1', JSON.stringify(state)); }
+
+          function init() {
