@@ -1,0 +1,135 @@
+name: Build YummyNelOS ISO
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build YummyNelOS ISO
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin mtools
+          mkdir -p work/chroot work/iso/live work/iso/boot/grub
+          sudo debootstrap --arch=amd64 --variant=minbase noble work/chroot http://ubuntu.com
+          echo "deb http://ubuntu.com noble main universe" | sudo tee work/chroot/etc/apt/sources.list
+          echo "deb http://ubuntu.com noble-updates main universe" | sudo tee -a work/chroot/etc/apt/sources.list
+          sudo mkdir -p work/chroot/opt/yummynelos
+
+          cat << 'EOF' | sudo tee work/chroot/opt/yummynelos/index.html
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+          <title>YummyNelOS</title>
+          <style>
+            :root { --bg: #121216; --card: rgba(30,30,38,0.85); --text: #f4f4f6; --accent: #ff6b4a; }
+            body.light { --bg: #f2efe9; --card: rgba(255,255,255,0.85); --text: #1c1c21; }
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; user-select: none; }
+            body { background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+            #screen { flex: 1; position: relative; background-size: cover; background-position: center; transition: filter 0.2s; }
+            .hidden { display: none !important; }
+            #island { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: #000; color: #fff; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; z-index: 50; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: all 0.25s; }
+            #island.active { padding: 8px 20px; border: 1px solid #333; }
+            #statusbar { display: flex; justify-content: space-between; padding: 10px 18px; font-size: 12px; font-weight: 600; z-index: 40; }
+            .overlay { position: absolute; inset: 0; background: var(--bg); z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; gap: 14px; }
+            input, select { width: 100%; max-width: 280px; padding: 10px 14px; border-radius: 12px; border: 1px solid #444; background: var(--card); color: var(--text); font-size: 14px; }
+            button { padding: 11px 20px; border-radius: 12px; border: none; background: var(--accent); color: #fff; font-weight: 600; font-size: 14px; cursor: pointer; }
+            button.sec { background: #333; color: #fff; }
+            #home { padding: 36px 18px 90px; height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
+            .widgets { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+            .widget { background: var(--card); backdrop-filter: blur(12px); border-radius: 18px; padding: 14px; position: relative; }
+            .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+            .app { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; cursor: pointer; }
+            .icon { width: 58px; height: 58px; border-radius: 16px; background: var(--card); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.25); }
+            .icon img, .icon svg { width: 100%; height: 100%; object-fit: cover; }
+            .app span { font-size: 11px; font-weight: 500; text-align: center; }
+            @keyframes jiggle { 0%,100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+            .jiggle .icon { animation: jiggle 0.25s infinite; }
+            .del-badge { position: absolute; top: -6px; left: 4px; background: #ff3b30; color: #fff; width: 20px; height: 20px; border-radius: 50%; font-size: 12px; display: none; align-items: center; justify-content: center; font-weight: bold; }
+            .jiggle .del-badge { display: flex; }
+            #homebar { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 120px; height: 5px; background: var(--text); opacity: 0.5; border-radius: 4px; cursor: pointer; z-index: 55; }
+            #appwin { position: absolute; inset: 0; background: var(--bg); z-index: 45; padding: 48px 16px 28px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+            #cc { position: absolute; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(18px); z-index: 58; padding: 50px 20px; display: flex; flex-direction: column; gap: 16px; color: #fff; }
+            .cc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+            .cc-tile { background: rgba(255,255,255,0.12); padding: 16px; border-radius: 18px; font-weight: 600; cursor: pointer; }
+            .cc-tile.on { background: var(--accent); }
+          </style>
+          </head>
+          <body>
+          <div id="screen">
+            <div id="statusbar">
+              <span id="clock">12:00</span>
+              <span id="cc-trigger" style="cursor:pointer">Wi-Fi • 100% ▾</span>
+            </div>
+            <div id="island">YummyNelOS</div>
+
+            <div id="setup" class="overlay">
+              <h2>YummyNelOS Setup</h2>
+              <input id="set-pin" type="password" placeholder="Create Passcode (optional)" maxlength="6">
+              <select id="set-theme">
+                <option value="dark">Dark Theme</option>
+                <option value="light">Light Theme</option>
+              </select>
+              <select id="set-wall">
+                <option value="linear-gradient(135deg,#1e1e2f,#3a2d4d)">Midnight Plum</option>
+                <option value="linear-gradient(135deg,#2b5876,#4e4376)">Deep Dusk</option>
+                <option value="linear-gradient(135deg,#d9a7c7,#fffcdc)">Warm Sand</option>
+              </select>
+              <button onclick="finishSetup()">Launch System</button>
+            </div>
+
+            <div id="lock" class="overlay hidden">
+              <h1 id="lock-time" style="font-size:48px">12:00</h1>
+              <input id="unlock-pin" type="password" placeholder="Enter Passcode" maxlength="6">
+              <button onclick="tryUnlock()">Unlock</button>
+            </div>
+
+            <div id="home">
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                  <small id="jiggle-bar" class="hidden"><button class="sec" onclick="exitJiggle()">Done</button></small>
+                </div>
+                <div class="widgets" id="widgets"></div>
+                <div class="grid" id="app-grid"></div>
+              </div>
+            </div>
+
+            <div id="appwin" class="hidden"></div>
+
+            <div id="cc" class="hidden">
+              <div style="display:flex;justify-content:space-between;"><h3>Control Center</h3><button class="sec" onclick="toggleCC()">Close</button></div>
+              <div class="cc-grid">
+                <div class="cc-tile on" onclick="this.classList.toggle('on')">Wi-Fi</div>
+                <div class="cc-tile on" onclick="this.classList.toggle('on')">Bluetooth</div>
+                <div class="cc-tile" onclick="this.classList.toggle('on')">Cooling Fan Boost</div>
+                <div class="cc-tile" onclick="toggleTheme()">Dark / Light</div>
+              </div>
+              <label>Brightness <input type="range" min="30" max="100" value="100" oninput="setBright(this.value)"></label>
+            </div>
+
+            <div id="homebar" onclick="goHome()"></div>
+          </div>
+
+          <script>
+          const SETTINGS_SVG = `<svg viewBox="0 0 100 100" xmlns="http://w3.org"><rect width="100" height="100" fill="#fff"/><path d="M22 46c-5-2-9 2-6 6 4 4 8 6 4 10-3 3-8 1-9-1m18-8c3 0 6-3 4-5-3-2-7 2-5 6 2 3 6 3 8 1m11-11v14m-4-8h9m12-6v14m-4-8h9m10 2h8M22 72v9m0-13h.1M33 81v-7c0-3 6-3 6 0v7m14-5c-4-2-8 2-6 6 2 3 7 2 7-2v-3m0 3c0 5-2 9-7 8m18-12c-4-2-7 1-4 4 3 2 6 4 3 7-3 2-6 1-7-1" fill="none" stroke="#111" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+          const DEFAULT_APPS = [
+            { id: 'store', name: '7O8j Store', icon: '7O8j', bg: '#ff6b4a', system: true },
+            { id: 'browser', name: 'Browser', icon: '🌐', bg: '#2b7de9', system: true },
+            { id: 'settings', name: 'Settings', svg: SETTINGS_SVG, bg: '#fff', system: true },
+            { id: 'weather', name: 'Weather', icon: '⛅', bg: '#38bdf8', system: true },
+            { id: 'clock', name: 'Timer', icon: '⏱️', bg: '#f59e0b', system: true },
+            { id: 'files', name: 'Files (.rar)', icon: '📦', bg: '#8b5cf6', system: true },
+            { id: 'term', name: 'Terminal', icon: '>_', bg: '#18181b', system: true },
+            { id: 'memories', name: 'Memories', icon: '🖼️', bg: '#ec4899', system: true, locked: true }
+          ];
+
+          let state = JSON.parse(localStorage.getItem('yummynelos_v1')) || {
+            setupDone: false, pin: '', theme: 'dark', wall: 'linear-gradient(135deg,#1e1e2f,#3a2d4d)',
+            ver: '1.0', aiAddon: true, customIcons: {}, apps: DEFAULT_APPS,
+            widgets: ['weather', 'storage'], storeApps: [
+              { name: 'Retro Notes', desc: 'Fast offline scratchpad', url: 'data:text/html,<body style="background:#111;color:#fff;font-family:sans-serif;padding:20px"><h2>Retro Notes</h2><textarea style="width:100%;height:70vh"></textarea></body>' }
+            ]
+          };
+
